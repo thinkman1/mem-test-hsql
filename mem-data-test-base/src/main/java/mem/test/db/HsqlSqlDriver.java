@@ -19,14 +19,10 @@ import java.util.Set;
 import org.apache.commons.lang.StringUtils;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
-import org.hsqldb.jdbcDriver;
 import org.springframework.context.support.ClassPathXmlApplicationContext;
 
-/**
- * @author thinkman
- * 
- */
-public class HsqlSqlDriver extends jdbcDriver implements Driver {
+@SuppressWarnings("unchecked")
+public class HsqlSqlDriver extends org.hsqldb.jdbcDriver implements Driver {
 
 	private static final Map<String, String> oldToNewMap = new HashMap<String, String>();
 	private static final Log log = LogFactory.getLog(HsqlSqlDriver.class);
@@ -38,14 +34,11 @@ public class HsqlSqlDriver extends jdbcDriver implements Driver {
 				Driver d = DriverManager.getDriver("jdbc:hsqldb:nomatter");
 				DriverManager.deregisterDriver(d);
 			} catch (Exception e) {
-
 			}
 
 			try {
-				@SuppressWarnings("resource")
 				ClassPathXmlApplicationContext ctx = new ClassPathXmlApplicationContext(
 						"hsqlTransform.xml");
-				@SuppressWarnings("unchecked")
 				Map<String, String> ctxMap = (Map<String, String>) ctx.getBean("oldToNewMap");
 
 				Set<String> keySet = ctxMap.keySet();
@@ -57,29 +50,29 @@ public class HsqlSqlDriver extends jdbcDriver implements Driver {
 				}
 				log.info("Ready to proxy " + keySet.size() + " sqls");
 			} catch (Exception e) {
-				log.info("Could not proxy sqls", e);
+				log.trace("Could not proxy sqls " + e.getMessage());
 			}
 		}
 	}
 
+	@Override
 	public Connection connect(String arg0, Properties arg1) throws SQLException {
+
 		final Connection connect = super.connect(arg0, arg1);
 		Connection c = (Connection) Proxy.newProxyInstance(HsqlSqlDriver.class.getClassLoader(),
-				new Class[] { Connection.class }, new InvocationHandler() {
+				new Class[] { Connection.class },
+				new InvocationHandler() {
 
 					@Override
 					public Object invoke(Object proxy, Method method, Object[] args)
 							throws Throwable {
-
 						Object invoke = method.invoke(connect, fixArgs(args));
 						if (method.getName().equals("createStatement")) {
 							Statement s = (Statement) Proxy.newProxyInstance(
 									HsqlSqlDriver.class.getClassLoader(),
 									new Class[] { Statement.class }, new ProxySql(invoke));
-
 							return s;
 						}
-
 						return invoke;
 					}
 				});
@@ -88,8 +81,8 @@ public class HsqlSqlDriver extends jdbcDriver implements Driver {
 	}
 
 	private static String normalizeSql(String key) {
-		String deleteWhiteSpace = StringUtils.deleteWhitespace(key);
-		return deleteWhiteSpace.toLowerCase();
+		String deleteWhitespace = StringUtils.deleteWhitespace(key);
+		return deleteWhitespace.toLowerCase();
 	}
 
 	private static final class ProxySql implements InvocationHandler {
@@ -99,32 +92,35 @@ public class HsqlSqlDriver extends jdbcDriver implements Driver {
 			this.object = invoke;
 		}
 
-		public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
+		@Override
+		public Object invoke(Object proxy, Method method,
+				Object[] args) throws Throwable {
 			return method.invoke(object, fixArgs(args));
 		}
+
 	}
 
 	private static Object[] fixArgs(Object[] args) {
 		boolean changed = false;
-
 		if (args != null && args.length == 1 && args[0].getClass() == String.class) {
 			String origSql = normalizeSql(args[0].toString());
 			if (oldToNewMap.containsKey(origSql)) {
 				args[0] = oldToNewMap.get(origSql);
 				changed = true;
 			} else if (log.isDebugEnabled()) {
-				log.debug("Did not find a match for " + origSql);
+				log.debug("Didn't find a match for " + origSql);
 			}
 		}
-		
+
 		if (changed && log.isInfoEnabled()) {
 			log.info("Changed sql to: " + args[0]);
 		}
-		
+
 		return args;
 	}
-	
+
 	public Map<String, String> getOldToNewMap() {
 		return oldToNewMap;
 	}
+
 }

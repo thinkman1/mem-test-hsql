@@ -8,6 +8,7 @@ import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Calendar;
 import java.util.Date;
 import java.util.HashMap;
@@ -25,20 +26,23 @@ import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
 /**
- * @author thinkman
+ * Factory to generate populated model objects for testing purposes.
  * 
  */
 public class TestObjectFactory {
 	private static Log log = LogFactory.getLog(TestObjectFactory.class);
 
 	private static final InvocationHandler invoker = new InvocationHandler() {
-
 		@Override
 		public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
 			return TestObjectFactory.getObject(method.getReturnType());
 		}
 	};
 
+	/**
+	 * Instantiates and populates a list of size <code>count</code> with
+	 * randomly generated objects of type <code>T</code>
+	 */
 	public static <T> List<T> getObject(Class<T> clazz, int count) {
 		return getObject(clazz, count, null);
 	}
@@ -46,9 +50,11 @@ public class TestObjectFactory {
 	public static <T> List<T> getObject(Class<T> clazz, int count, T template) {
 		List<T> list = new ArrayList<T>();
 
-		for (int i = 0; i < count; i++) {
-			T object = getObject(clazz, template);
-			list.add(object);
+		if (count > 0) {
+			for (int i = 0; i < count; i++) {
+				T object = getObject(clazz, template);
+				list.add(object);
+			}
 		}
 
 		return list;
@@ -57,14 +63,12 @@ public class TestObjectFactory {
 	/**
 	 * Instantiates and populates an object of type T, overriding values with
 	 * value supplied by template
-	 * 
-	 * @param clazz
-	 * @param template
 	 */
 	public static <T> T getObject(Class<T> clazz, T template) {
-		// Only applies "top-level" templating right now. Does not recurse
+		// Only applies "top-level" templating right now. Does not recurse.
 		T object = getObject(clazz);
 
+		// Woooo! Nesting....
 		if (template != null) {
 			Method[] methods = clazz.getMethods();
 			for (Method getter : methods) {
@@ -78,12 +82,12 @@ public class TestObjectFactory {
 								if (getter.getReturnType().isPrimitive()) {
 									if (shouldUsePrimitive(got, setter.getParameterTypes()[0])) {
 										setter.invoke(object, got);
-									} else {
-										setter.invoke(object, got);
 									}
+								} else {
+									setter.invoke(object, got);
 								}
 							} catch (NoSuchMethodException e) {
-								log.debug("No setter found for " + setterName + " : "
+								log.debug("No setter found for " + setterName + ":"
 										+ getter.getReturnType());
 							}
 						}
@@ -93,7 +97,6 @@ public class TestObjectFactory {
 					}
 				}
 			}
-
 		}
 
 		return object;
@@ -101,30 +104,28 @@ public class TestObjectFactory {
 
 	/**
 	 * Determines whether to use the value provided in the template. Returns
-	 * false if the primitive value is the same as the default value for tha
+	 * false if the primitive value is the same as the default value for that
 	 * type (0, false, etc)
-	 * 
-	 * @param value
-	 * @param type
-	 * @return
 	 */
 	private static boolean shouldUsePrimitive(Object value, Class<?> type) {
-		boolean retVal = true;
+		// basically we're going to say DON'T copy the value if it is the
+		// primitive default
 
-		if (type == Long.TYPE ||
-				type == Integer.TYPE ||
-				type == Short.TYPE ||
-				type == Byte.TYPE ||
-				type == Double.TYPE ||
+		boolean retVal = true;
+		if (type == Long.TYPE || //
+				type == Integer.TYPE || //
+				type == Short.TYPE || //
+				type == Byte.TYPE || //
+				type == Double.TYPE || //
 				type == Float.TYPE) {
 			if (((Number) value).intValue() == 0) {
 				retVal = false;
 			}
 		} else if (type == Boolean.TYPE && ((Boolean) value).booleanValue() == false) {
 			retVal = false;
-		} else if (type == Double.TYPE && (((Double) value)).intValue() == 0) {
+		} else if (type == Double.TYPE && ((Double) value).intValue() == 0) {
 			retVal = false;
-		} else if (type == Float.TYPE && (((Float) value).intValue() == 0)) {
+		} else if (type == Float.TYPE && ((Float) value).intValue() == 0) {
 			retVal = false;
 		} else if (type == Character.TYPE && ((Character) value).charValue() == 0) {
 			retVal = false;
@@ -134,14 +135,16 @@ public class TestObjectFactory {
 	}
 
 	/**
+	 * @param <T>
+	 *            Generic type to instantiate and return
 	 * @param clazz
 	 *            Class definition to retrieve setters from
 	 * @return A randomly populated instance of class T
 	 */
 	@SuppressWarnings("unchecked")
 	public static <T> T getObject(Class<T> clazz) {
-		// TODO looking into java.beans, some of the introspection stuff may
-		// have made this eaiser
+		// TODO looking into java.beans, some of the introspecition stuff may
+		// have made this easier
 		// TODO Handle circular references
 		// TODO Pick random enumeration rather than [0]
 
@@ -149,11 +152,14 @@ public class TestObjectFactory {
 		if (clazz.isInterface()) {
 			object = handleInterface(clazz);
 		} else if (clazz.isAnnotation()) {
-			throw new IllegalStateException("Unable to handle annotation :: " + clazz);
+			// Seriously? WTF buddy?
+			throw new IllegalStateException("Unable to handle annotation: " + clazz);
 		} else if (clazz.isArray()) {
 			object = (T) Array.newInstance(clazz.getComponentType(), 0);
 		} else if (clazz.isEnum()) {
-			object = clazz.getEnumConstants()[0];
+			object = clazz.getEnumConstants()[0]; // should we use
+													// getRandomEnumConstant()
+													// instead?
 		} else if (clazz.isPrimitive()) {
 			object = (T) handlePrimitive(clazz);
 		} else {
@@ -175,14 +181,13 @@ public class TestObjectFactory {
 		try {
 			object = clazz.newInstance();
 		} catch (Exception e) {
-			throw new IllegalStateException("Unable t instantiate class :: " + clazz, e);
+			throw new IllegalStateException("Unable to instantiate class: " + clazz, e);
 		}
 
 		Method[] methods = clazz.getMethods();
 		for (Method method : methods) {
 			if (method.getName().startsWith("set") && method.getParameterTypes().length == 1
 					&& method.getReturnType() == Void.TYPE) {
-
 				try {
 					if (isPrimitive(method.getParameterTypes()[0])) {
 						Object o = handlePrimitive(method.getParameterTypes()[0]);
@@ -191,6 +196,9 @@ public class TestObjectFactory {
 						method.invoke(object, UUID.randomUUID());
 					} else if (method.getParameterTypes()[0] == Date.class) {
 						method.invoke(object, DateUtils.truncate(new Date(), Calendar.DATE));
+					} else if (method.getParameterTypes()[0] == Calendar.class) {
+						method.invoke(object,
+								DateUtils.truncate(Calendar.getInstance(), Calendar.DATE));
 					} else if (method.getParameterTypes()[0] == String.class) {
 						method.invoke(object, getRandomString(10));
 					} else if (method.getParameterTypes()[0] == List.class) {
@@ -211,9 +219,11 @@ public class TestObjectFactory {
 						Object o = getObject(method.getParameterTypes()[0]);
 						method.invoke(object, o);
 					} else {
-						log.debug("oops");
+						if (log.isDebugEnabled()) {
+							log.debug("property not set - " + method.getName() + " : "
+									+ Arrays.asList(method.getParameterTypes()));
+						}
 					}
-
 				} catch (Exception e) {
 					String message = String.format("Unable to invoke method %s on class %s",
 							method.getName(), clazz);
@@ -221,25 +231,57 @@ public class TestObjectFactory {
 				}
 			}
 		}
-
 		return object;
 	}
 
+	/**
+	 * isPrimitive-ish. Close enough anyways.
+	 */
 	private static boolean isPrimitive(Class<?> c) {
 		if (c.isPrimitive()) {
 			return true;
-		} else if (c == Integer.class || c == Long.class || c == Boolean.class
-				|| c == Character.class || c == Byte.class || c == Short.class || c == Float.class
+		} else if (c == Integer.class //
+				|| c == Long.class //
+				|| c == Boolean.class //
+				|| c == Character.class //
+				|| c == Byte.class //
+				|| c == Short.class //
+				|| c == Float.class //
 				|| c == Double.class) {
-
 			return true;
 		} else {
 			return false;
 		}
 	}
 
-	private static Object handlePrimitive(Class<?> c) {
+	// private static boolean handlePrimitiveAndWrapper(Method method, Object
+	// object) throws IllegalArgumentException, IllegalAccessException,
+	// InvocationTargetException {
+	// Class<?> c = method.getParameterTypes()[0];
+	// if (c == Integer.TYPE || c == Integer.class) {
+	// method.invoke(object, getRandomInt(3));
+	// } else if (c == Long.TYPE || c == Long.class) {
+	// method.invoke(object, getRandomLong(8));
+	// } else if (c == Boolean.TYPE || c == Boolean.class) {
+	// method.invoke(object, RandomUtils.nextBoolean());
+	// } else if (c == Character.TYPE || c == Character.class) {
+	// method.invoke(object, (char) getRandomInt(2));
+	// } else if (c == Byte.TYPE || c == Byte.class) {
+	// method.invoke(object, (byte) getRandomInt(2));
+	// } else if (c == Short.TYPE || c == Short.class) {
+	// method.invoke(object, (short) getRandomInt(3));
+	// } else if (c == Float.TYPE || c == Float.class) {
+	// method.invoke(object, RandomUtils.nextFloat() * 100);
+	// } else if (c == Double.TYPE || c == Double.class) {
+	// method.invoke(object, RandomUtils.nextDouble() * 1000);
+	// } else {
+	// return false;
+	// }
+	//
+	// return true;
+	// }
 
+	private static Object handlePrimitive(Class<?> c) {
 		if (c == Integer.TYPE || c == Integer.class) {
 			return Integer.valueOf(getRandomInt(3));
 		} else if (c == Long.TYPE || c == Long.class) {
@@ -275,18 +317,17 @@ public class TestObjectFactory {
 	}
 
 	/**
-	 * Returns a random enum constant
+	 * Returns a random enum constant.
 	 * 
 	 * @param enumType
 	 *            the enum type
 	 * @param includeNulls
-	 *            if true, nulls will be returned with frequency equal to that
+	 *            if true, nulls with be returned with frequency equal to that
 	 *            of any constant
 	 * @return a random enum constant value, or null if includeNulls is true
 	 */
 	public static <T extends Enum<T>> T getRandomEnumConstant(Class<T> enumType,
 			boolean includeNulls) {
-
 		T[] ta = enumType.getEnumConstants();
 		if (ta == null) {
 			throw new IllegalArgumentException(enumType + " not an enum type");
@@ -300,7 +341,6 @@ public class TestObjectFactory {
 				int i = RandomUtils.nextInt(ta.length + 1);
 				return i == ta.length ? null : ta[i];
 			}
-
 			return ta[RandomUtils.nextInt(ta.length)];
 		}
 	}

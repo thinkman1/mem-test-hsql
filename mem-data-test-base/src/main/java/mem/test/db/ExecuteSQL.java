@@ -16,22 +16,38 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.DataSourceUtils;
 
 /**
- * @author thinkman
- * 
+ *
  */
-public class ExecuteSQL {
+public final class ExecuteSQL {
 
 	private static final Log LOG = LogFactory.getLog(ExecuteSQL.class);
 
+	/**
+	 *
+	 */
 	private ExecuteSQL() {
-	};
-	
-	public static void executeSQLFile(final String fileName, final JdbcTemplate template) throws IOException {
+	}
+
+	/**
+	 * NOTE: Will remove any drop commands and not run them. If you want to run
+	 * the drops execute overloaded method.
+	 * 
+	 * @param fileName
+	 *            The name of the sql script file to run
+	 * @param template
+	 *            A JdbcTemplate to use
+	 * 
+	 * @throws IOException
+	 *             if there was a problem reading the file
+	 * @throws IllegalStateException
+	 *             if an insert or update didnt change any rows
+	 */
+	public static void executeSQLFile(final String fileName,
+			final JdbcTemplate template) throws IOException {
 		executeSQLFile(fileName, template, true);
 	}
 
 	/**
-	 * 
 	 * @param fileName
 	 *            The name of the sql script file to run
 	 * @param template
@@ -39,9 +55,13 @@ public class ExecuteSQL {
 	 * @param removeDrops
 	 *            will remove drop statements if true
 	 * @throws IOException
+	 *             if there was a problem reading the file
+	 * @throws IllegalStateException
+	 *             if an insert or update didnt change any rows
 	 */
-	public static void executeSQLFile(final String fileName, final JdbcTemplate template,
-			final boolean removeDrops) throws IOException {
+	public static void executeSQLFile(final String fileName,
+			final JdbcTemplate template, final boolean removeDrops)
+			throws IOException {
 
 		URL file = ExecuteSQL.class.getClassLoader().getResource(fileName);
 		if (file == null) {
@@ -50,20 +70,20 @@ public class ExecuteSQL {
 
 		LOG.debug("File name = " + file.getFile());
 
-		String sql = IOUtils.toString(ExecuteSQL.class.getClassLoader().getResourceAsStream(
-				fileName));
-		Connection c = null;
+		String sql = IOUtils.toString(ExecuteSQL.class.getClassLoader()
+				.getResourceAsStream(fileName));
 
+		Connection c = null;
 		try {
 			c = template.getDataSource().getConnection();
 			DatabaseMetaData meta = c.getMetaData();
 			if (meta.getDatabaseProductName().startsWith("HSQL")) {
 				sql = TransformToHSQL.transformSQL(sql);
 			} else {
-				throw new IOException("I dont think this should run if we are not hsql");
+				throw new IOException("I dont think this should run if we are not HSQL");
 			}
 		} catch (SQLException e) {
-			LOG.warn("Had a problem determinig database type. Continuing");
+			LOG.warn("Had a problem determining database type. Continuing");
 		} finally {
 			DataSourceUtils.releaseConnection(c, template.getDataSource());
 		}
@@ -77,26 +97,29 @@ public class ExecuteSQL {
 				if (spaceIndex < 0) {
 					spaceIndex = statement.length();
 				}
-
-				String statementType = statement.substring(0, spaceIndex).toLowerCase();
+				String statementType = statement.substring(0, spaceIndex)
+						.toLowerCase();
 				if (!(statementType.equals("drop") && removeDrops)) {
 					try {
 						count = template.update(sqls[i]);
 					} catch (Exception e) {
-
+						// Ignoring the exception but count is checked below to
+						// handle error anyway.
+						// the exception occurs only for sqls that has comments
 					}
 
 					if (statement.trim().toLowerCase().startsWith("insert")
-							|| statement.trim().toLowerCase().startsWith("update")) {
+							|| statement.trim().toLowerCase().startsWith(
+									"update")) {
 						if (count < 1) {
 							throw new IllegalStateException(
-									"Should have been at least 1 row changed.  Instead update "
+									"Should have been at least 1 row changed.  Instead updated "
 											+ count);
 						}
 					}
 				}
 			}
 		}
-
 	}
+
 }
