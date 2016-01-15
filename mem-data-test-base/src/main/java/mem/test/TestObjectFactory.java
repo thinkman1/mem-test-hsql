@@ -33,7 +33,6 @@ public class TestObjectFactory {
 	private static Log log = LogFactory.getLog(TestObjectFactory.class);
 
 	private static final InvocationHandler invoker = new InvocationHandler() {
-		@Override
 		public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
 			return TestObjectFactory.getObject(method.getReturnType());
 		}

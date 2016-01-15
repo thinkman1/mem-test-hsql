@@ -1,15 +1,10 @@
 package mem.test.db;
 
-import java.io.File;
-import java.io.IOException;
-
 import org.apache.commons.dbcp.BasicDataSource;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 /**
  * Class to initialize a datasource
- * 
- * @author Jim Kerwood
  * 
  */
 public final class InitializeDataSource {
@@ -122,6 +117,10 @@ public final class InitializeDataSource {
 			throw new RuntimeException(e);
 		}
 
+	}
+	
+	public static void loadTables(JdbcTemplate template) {
+		// TODO
 	}
 
 	public static JdbcTemplate createNewDatabase(final String schemaName) {

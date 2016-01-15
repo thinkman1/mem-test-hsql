@@ -11,7 +11,6 @@ import org.springframework.context.ApplicationContext;
 /**
  * Class to help proxying around the app context
  *
- * @author Jim Kerwood
  */
 public final class AppContextProxy {
 

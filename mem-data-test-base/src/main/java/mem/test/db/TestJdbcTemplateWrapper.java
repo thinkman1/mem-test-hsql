@@ -25,7 +25,6 @@ public class TestJdbcTemplateWrapper extends JdbcTemplate{
 	/*default - just call super
 	 * 
 	 */
-	
 	public TestJdbcTemplateWrapper(JdbcTemplate wrappedTemplate){
 		this.wrappedTemplate = wrappedTemplate;
 	}

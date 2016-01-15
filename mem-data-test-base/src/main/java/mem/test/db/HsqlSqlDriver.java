@@ -63,7 +63,6 @@ public class HsqlSqlDriver extends org.hsqldb.jdbcDriver implements Driver {
 				new Class[] { Connection.class },
 				new InvocationHandler() {
 
-					@Override
 					public Object invoke(Object proxy, Method method, Object[] args)
 							throws Throwable {
 						Object invoke = method.invoke(connect, fixArgs(args));
@@ -92,7 +91,6 @@ public class HsqlSqlDriver extends org.hsqldb.jdbcDriver implements Driver {
 			this.object = invoke;
 		}
 
-		@Override
 		public Object invoke(Object proxy, Method method,
 				Object[] args) throws Throwable {
 			return method.invoke(object, fixArgs(args));
